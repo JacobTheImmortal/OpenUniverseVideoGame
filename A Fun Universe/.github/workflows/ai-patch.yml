@@ -1,5 +1,6 @@
 name: AI Patch Bot
 on:
+workflow_dispatch:   # ← lets you press a “Run workflow” button
   issue_comment:
     types: [created]
 
