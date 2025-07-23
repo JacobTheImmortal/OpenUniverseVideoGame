@@ -6,6 +6,7 @@ on:
 
 jobs:
   patch:
+    # only run when the comment starts with `/gpt `
     if: ${{ startsWith(github.event.comment.body, '/gpt ') }}
     runs-on: ubuntu-latest
     env:
@@ -13,7 +14,7 @@ jobs:
       GH_TOKEN:       ${{ secrets.BOT_GH_TOKEN }}
 
     steps:
-    # 1️⃣  Checkout the repo
+    # 1️⃣  Checkout repo
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -24,66 +25,70 @@ jobs:
         python -m pip install --upgrade pip
         pip install "openai>=0.28,<1.0"
 
-    # 3️⃣  Extract the user’s prompt (strip the /gpt prefix)
+    # 3️⃣  Extract user prompt (strip /gpt )
     - name: Extract user prompt
       id: prompt
       run: |
         body="${{ github.event.comment.body }}"
         echo "PROMPT=${body:5}" >> "$GITHUB_ENV"
 
-    # 4️⃣  Call GPT-4o-mini, create a patch, apply it on a new branch
+    # 4️⃣  Call GPT-4o-mini, create patch, apply on new branch
     - name: Run GPT-4o-mini to generate patch
       run: |
         python - <<'PY'
-        import os, subprocess, pathlib, tempfile, openai, textwrap
+        import os, subprocess, pathlib, tempfile, openai
 
         openai.api_key = os.environ["OPENAI_API_KEY"]
         prompt         = os.environ["PROMPT"]
 
-        # --- files to give the model as context ---------------------------
+        # files to give the model as context  ── adjust as needed
         ctx_files = [
             "A Fun Universe/Assets/Shaders/AtmosphereScattering.shader",
             "A Fun Universe/Assets/Scripts/AtmosphereShell.cs"
         ]
+
         context = ""
         for f in ctx_files:
             p = pathlib.Path(f)
             if p.exists():
-                context += f"\n===== {p} =====\n{p.read_text()}\n"
+                # tolerant UTF-8 decode so weird bytes don't crash the run
+                text = p.read_bytes().decode("utf-8", errors="replace")
+                context += f"\n===== {p} =====\n{text}\n"
 
         system_msg = (
             "You are an AI Unity-game-dev assistant. "
-            "Return **ONLY** a valid unified diff that Git can apply, "
-            "starting with ---/+++ lines.  Do not wrap the diff in code fences. "
+            "Return ONLY a valid unified diff (no explanations, no code fences)."
         )
 
-        messages = [
-            {"role": "system", "content": system_msg},
-            {"role": "user",
-             "content": f"The user said: {prompt}\n\nCurrent code:\n{context}"}
-        ]
+        completion = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user",   "content": f"The user said: {prompt}\n\nCurrent code:\n{context}"}
+            ],
+            temperature=0.2,
+        )
 
-        resp  = openai.ChatCompletion.create(model="gpt-4o-mini", messages=messages, temperature=0.2)
-        patch = resp.choices[0].message.content.strip()
+        patch = completion.choices[0].message.content.strip()
 
-        # save diff to tmp file
+        # write diff to temp file
         with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8") as tmp:
             tmp.write(patch)
             tmp_path = tmp.name
 
-        # apply on new branch
+        # apply patch on a new branch
         subprocess.run(["git", "checkout", "-b", "ai-patch"], check=True)
         subprocess.run(["git", "apply", tmp_path], check=True)
         subprocess.run(["git", "add", "-u"], check=True)
-        subprocess.run(["git", "commit", "-m", f'AI patch: {prompt[:72]}'], check=True)
+        subprocess.run(["git", "commit", "-m", f"AI patch: {prompt[:72]}"], check=True)
         PY
 
-    # 5️⃣  Push branch and open PR
+    # 5️⃣  Push branch & open PR
     - name: Push branch & open PR
       run: |
         git push -u origin HEAD
         gh pr create \
-          --title  "AI patch: ${{ env.PROMPT }}" \
-          --body   "Automated patch generated from comment: ${{ github.event.comment.html_url }}" \
-          --head   ai-patch \
-          --base   main
+          --title "AI patch: ${{ env.PROMPT }}" \
+          --body  "Automated patch generated from comment: ${{ github.event.comment.html_url }}" \
+          --head  ai-patch \
+          --base  main
