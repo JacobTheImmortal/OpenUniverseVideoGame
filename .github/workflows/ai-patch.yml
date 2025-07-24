@@ -1,7 +1,7 @@
 name: AI Code Bot
 
 on:
-  workflow_dispatch: # Trigger manually when needed
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   code_update:
@@ -10,29 +10,30 @@ jobs:
       GH_TOKEN: ${{ secrets.BOT_GH_TOKEN }}
 
     steps:
-    # 1️⃣ Checkout repository
+    # 1️⃣ Checkout the repository
     - uses: actions/checkout@v4
 
-    # 2️⃣ Apply code changes
+    # 2️⃣ Apply code changes (dynamic creation or updates)
     - name: Apply code changes
       run: |
         echo "Applying code changes..."
-        # Replace this with the logic/code you provide directly.
-        # Example: Create or update files as needed.
+        
+        # Example: Create a new file with dynamic content
+        echo "// This is a dynamically generated file" > new_file.cs
 
-        # Example of creating/updating a file:
-        echo "New code content goes here" > path/to/updated_file
+        # Example: Update an existing file
+        echo "// This is an updated comment" >> path/to/existing_file.cs
 
         # Commit changes
         git add -A
         git commit -m "Automated code update"
 
-    # 3️⃣ Push branch & create pull request
+    # 3️⃣ Push branch & create a pull request
     - name: Push branch & create pull request
       run: |
         git push -u origin HEAD
         gh pr create \
           --title "Automated Code Update" \
-          --body  "Code update triggered via workflow_dispatch" \
+          --body  "This code update was triggered via workflow_dispatch" \
           --head  automated-code-update \
           --base  main
