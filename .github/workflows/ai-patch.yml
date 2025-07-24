@@ -1,47 +1,45 @@
-name: AI Code Bot
+name: AI Code Bot Automation
 
 on:
   issue_comment:
     types: [created]
 
 jobs:
-  code_update:
-    if: ${{ startsWith(github.event.comment.body, '/update ') }}
+  process_request:
+    if: ${{ startsWith(github.event.comment.body, '/request') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.BOT_GH_TOKEN }}
 
     steps:
-    # 1️⃣ Checkout repository
+    # 1️⃣ Checkout the repository
     - uses: actions/checkout@v4
 
-    # 2️⃣ Extract user instructions
-    - name: Extract instructions
-      id: instructions
+    # 2️⃣ Extract user command
+    - name: Extract Command
+      id: command
       run: |
-        body="${{ github.event.comment.body }}"
-        echo "USER_INSTRUCTIONS=${body:8}" >> "$GITHUB_ENV"
+        echo "COMMAND=${{ github.event.comment.body }}" >> $GITHUB_ENV
 
-    # 3️⃣ Generate code based on instructions
-    - name: Generate code
+    # 3️⃣ Process the request (generate or modify files)
+    - name: Process Request
       run: |
-        echo "Generating code..."
-        # Replace this with dynamic code generation logic
-        echo "// Code generated based on user instructions" > generated_file.cs
+        echo "Processing command: ${{ env.COMMAND }}"
+        if [[ ${{ env.COMMAND }} == "/request Add Hello World comment" ]]; then
+          # Example: Add Hello World comment
+          echo "// Hello World" > temp_file
+          cat A\ Fun\ Universe/Assets/Scripts/IcoSphere.cs >> temp_file
+          mv temp_file A\ Fun\ Universe/Assets/Scripts/IcoSphere.cs
+          git add A\ Fun\ Universe/Assets/Scripts/IcoSphere.cs
+          git commit -m "Added Hello World comment"
+        fi
 
-        # Example of updating an existing file
-        echo "// Updated based on user instructions" >> path/to/existing_file.cs
-
-        # Commit changes
-        git add -A
-        git commit -m "Code update: ${{ env.USER_INSTRUCTIONS }}"
-
-    # 4️⃣ Push branch and create pull request
-    - name: Push branch & create pull request
+    # 4️⃣ Push changes and create pull request
+    - name: Push changes & create pull request
       run: |
         git push -u origin HEAD
         gh pr create \
-          --title "Automated Update: ${{ env.USER_INSTRUCTIONS }}" \
-          --body  "Changes requested via issue comment: ${{ github.event.comment.html_url }}" \
+          --title "Automated Update: ${{ env.COMMAND }}" \
+          --body  "Change requested via issue comment: ${{ github.event.comment.html_url }}" \
           --head  automated-update \
           --base  main
