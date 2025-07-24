@@ -1,39 +1,47 @@
 name: AI Code Bot
 
 on:
-  workflow_dispatch: # Allows manual triggering
+  issue_comment:
+    types: [created]
 
 jobs:
   code_update:
+    if: ${{ startsWith(github.event.comment.body, '/update ') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.BOT_GH_TOKEN }}
 
     steps:
-    # 1️⃣ Checkout the repository
+    # 1️⃣ Checkout repository
     - uses: actions/checkout@v4
 
-    # 2️⃣ Apply code changes (dynamic creation or updates)
-    - name: Apply code changes
+    # 2️⃣ Extract user instructions
+    - name: Extract instructions
+      id: instructions
       run: |
-        echo "Applying code changes..."
-        
-        # Example: Create a new file with dynamic content
-        echo "// This is a dynamically generated file" > new_file.cs
+        body="${{ github.event.comment.body }}"
+        echo "USER_INSTRUCTIONS=${body:8}" >> "$GITHUB_ENV"
 
-        # Example: Update an existing file
-        echo "// This is an updated comment" >> path/to/existing_file.cs
+    # 3️⃣ Generate code based on instructions
+    - name: Generate code
+      run: |
+        echo "Generating code..."
+        # Replace this with dynamic code generation logic
+        echo "// Code generated based on user instructions" > generated_file.cs
+
+        # Example of updating an existing file
+        echo "// Updated based on user instructions" >> path/to/existing_file.cs
 
         # Commit changes
         git add -A
-        git commit -m "Automated code update"
+        git commit -m "Code update: ${{ env.USER_INSTRUCTIONS }}"
 
-    # 3️⃣ Push branch & create a pull request
+    # 4️⃣ Push branch and create pull request
     - name: Push branch & create pull request
       run: |
         git push -u origin HEAD
         gh pr create \
-          --title "Automated Code Update" \
-          --body  "This code update was triggered via workflow_dispatch" \
-          --head  automated-code-update \
+          --title "Automated Update: ${{ env.USER_INSTRUCTIONS }}" \
+          --body  "Changes requested via issue comment: ${{ github.event.comment.html_url }}" \
+          --head  automated-update \
           --base  main
